@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 from app.services.pdf_reader import extract_text_from_pdf
 from app.services.chunking import split_into_chunks
-from app.services.embeddings import emb_model, embed_chunks
+from app.services.embeddings import embed_chunks
 from app.services.vector_store import VectorStore
 
 load_dotenv()
@@ -46,27 +46,27 @@ class CVRAGAgent:
 
         # 6. Prompt amélioré + few-shot JSON
         prompt = f"""
-Tu es un expert RH spécialisé en extraction de CV.
-Analyse UNIQUEMENT les informations contenues dans le texte suivant :
+            Tu es un expert RH spécialisé en extraction de CV.
+            Analyse UNIQUEMENT les informations contenues dans le texte suivant :
 
-------------------------
-{context}
-------------------------
+            ------------------------
+            {context}
+            ------------------------
 
-Retourne un JSON STRICT SANS TEXTE AVANT/APRÈS.
+            Retourne un JSON STRICT SANS TEXTE AVANT/APRÈS.
 
-Exemple de format correct :
-{{
-    "name": "John Doe",
-    "technical_skills": ["Python", "SQL"],
-    "soft_skills": ["Communication", "Adaptabilité"],
-    "experience_years": "3 ans",
-    "education_level": "Licence Informatique",
-    "projects": ["Application web de gestion", "Système de recommandation"]
-}}
+            Exemple de format correct :
+            {{
+                "name": "John Doe",
+                "technical_skills": ["Python", "SQL"],
+                "soft_skills": ["Communication", "Adaptabilité"],
+                "experience_years": "3 ans",
+                "education_level": "Licence Informatique",
+                "projects": ["Application web de gestion", "Système de recommandation"]
+            }}
 
-Maintenant, génère le JSON basé sur le CV fourni.
-"""
+            Maintenant, génère le JSON basé sur le CV fourni.
+            """
 
         payload = {
             "model": self.model,

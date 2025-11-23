@@ -24,33 +24,43 @@ class JobAnalyzerAgent:
 
         # Prompt renforcé pour JSON strict
         self.prompt = """
-Tu es un agent expert en analyse d'offres d'emploi.
-Tu dois retourner un JSON STRICT et VALIDE. STRICT signifie :
-- pas de texte avant
-- pas de texte après
-- pas de commentaires
-- pas de prose
-- uniquement un JSON pur.
+        Tu es un agent expert en analyse d'offres d'emploi.
+        Tu dois retourner un JSON STRICT et VALIDE. STRICT signifie :
+        - pas de texte avant
+        - pas de texte après
+        - pas de commentaires
+        - pas de prose
+        - uniquement un JSON pur.
 
-Voici l’offre :
-----------------
-{job_description}
-----------------
+        Voici l’offre :
+        ----------------
+        {job_description}
+        ----------------
 
-Retourne EXACTEMENT ce format :
+        Règles importantes :
+            - Si l'offre mentionne une durée en mois (ex : "6 mois"), c'est très probablement un STAGE.
+            - Si l’offre mentionne "stage", "internship", "stagiaire", "intern", renvoyer "stage".
+            - Si rien n’est indiqué mais que le texte contient "nous recherchons", "CDI", "CDD", alors déduire le type.
+            - Si aucune déduction n’est possible, retourner "inconnu".
 
-{{
-  "title": "",
-  "technical_skills": [],
-  "soft_skills": [],
-  "experience_level": "",
-  "education_level": "",
-  "responsibilities": [],
-  "keywords": []
-}}
+            -Si salaire n’est pas mentionné, retourner "inconnu".
 
-Ne rajoute aucun texte ni explication.
-"""
+        Retourne EXACTEMENT ce format :
+
+        {{
+        "title": "",
+        "technical_skills": [],
+        "soft_skills": [],
+        "experience_level": "",
+        "education_level": "",
+        "contract_type": "",
+        "location": "",
+        "responsibilities": [],
+        "keywords": []
+        }}
+
+        Ne rajoute aucun texte ni explication.
+        """
 
     async def analyze_job(self, job_description: str):
         """Analyse une offre d'emploi avec Llama 3.1 via HuggingFace"""
