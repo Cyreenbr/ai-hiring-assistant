@@ -1,16 +1,19 @@
-import os
-import requests
+from sentence_transformers import SentenceTransformer
 import numpy as np
 
-HF_TOKEN = os.getenv("HF_TOKEN")
+# Modèle d'embedding local, gratuit et rapide
+model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
 def embed_chunks(chunks):
-    vectors = []
-    for text in chunks:
-        resp = requests.post(
-            "https://api-inference.huggingface.co/embeddings/sentence-transformers/all-MiniLM-L6-v2",
-            headers={"Authorization": f"Bearer {HF_TOKEN}"},
-            json={"inputs": text}
-        )
-        vectors.append(resp.json()["embeddings"])
-    return np.array(vectors)
+    """
+    Encode une liste de chunks en vecteurs embeddings.
+    """
+    vectors = model.encode(chunks, convert_to_numpy=True)
+    return vectors
+
+def embed_query(text: str):
+    """
+    Encode une requête (question ou instruction) pour le retrieval.
+    """
+    vector = model.encode([text], convert_to_numpy=True)[0]
+    return vector

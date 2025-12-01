@@ -1,24 +1,35 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# IMPORT DES ROUTES
-from app.routes import jobs
-from app.routes import cv   # 👈 AJOUT IMPORTANT
+# --- IMPORT DES ROUTES ---
+from app.routes.jobs import router as jobs_router
+from app.routes.cv import router as cv_router
+from app.routes.matching import router as matching_router
 
-app = FastAPI(title="AI Hiring Assistant")
+# --- INITIALISATION ---
+app = FastAPI(
+    title="AI Hiring Assistant",
+    description="Plateforme intelligente d’analyse d’offres, parsing de CV via RAG et matching candidat–poste.",
+    version="1.0.0"
+)
 
+# --- CONFIG CORS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ROUTES BACKEND
-app.include_router(jobs.router)
-app.include_router(cv.router)   # 👈 ON ACTIVE L’ENDPOINT CV
+# --- INCLUSION DES ROUTES ---
+app.include_router(jobs_router, prefix="/api/jobs")
+app.include_router(cv_router, prefix="/api/cv")
+app.include_router(matching_router)  
+# matching_router contient déjà "prefix=/api/match"
 
+
+# --- ROUTES DE TEST ---
 @app.get("/")
 async def root():
     return {"message": "AI Hiring Assistant API", "status": "running"}
