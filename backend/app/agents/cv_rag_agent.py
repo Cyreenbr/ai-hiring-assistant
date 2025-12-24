@@ -19,7 +19,7 @@ class CVRAGAgent:
         self.api_url = "https://router.huggingface.co/v1/chat/completions"
         self.model = "meta-llama/Llama-3.1-8B-Instruct"
 
-        # Index FAISS (en mémoire)
+        # Index FAISS unique et persistant
         self.store = None
 
     async def analyze_cv(self, pdf_path: str):
@@ -27,8 +27,27 @@ class CVRAGAgent:
         # 1️⃣ Extraction du texte du CV
         text = extract_text_from_pdf(pdf_path)
 
+        # Si CV vide → renvoyer JSON vide propre
+        if not text or len(text.strip()) < 20:
+            return {
+                "name": "",
+                "contact": {"email": "", "phone": ""},
+                "profile_summary": "",
+                "experiences": [],
+                "education": [],
+                "technical_skills": [],
+                "soft_skills": [],
+                "languages": [],
+                "projects": [],
+                "certifications": [],
+                "interests": []
+            }
+
         # 2️⃣ Découpage en chunks
         chunks = split_into_chunks(text, chunk_size=800, overlap=80)
+
+        if len(chunks) == 0:
+            chunks = [text]  # fallback minimal
 
         # 3️⃣ Embeddings locaux
         vectors = embed_chunks(chunks)
@@ -44,28 +63,31 @@ class CVRAGAgent:
             "expériences, formations, projets, compétences techniques, soft skills, langues, certifications"
         ).reshape(1, -1)
 
-        # Recherche des chunks pertinents
-        indices = self.store.search(query_vec, top_k=5)
-        relevant_chunks = [chunks[i] for i in indices[0]]
+        # 6️⃣ Recherche robuste (ÉVITE l’erreur IndexError)
+        k = min(5, len(chunks))
+        indices = self.store.search(query_vec, top_k=k)
+
+        # Filtrer indices invalides
+        valid_indices = []
+        for i in indices[0]:
+            if isinstance(i, int) and 0 <= i < len(chunks):
+                valid_indices.append(i)
+
+        # Fallback si aucun chunk valide
+        if not valid_indices:
+            relevant_chunks = [chunks[0]]
+        else:
+            relevant_chunks = [chunks[i] for i in valid_indices]
 
         context = "\n\n".join(relevant_chunks)
 
-        # 6️⃣ Prompt STRICT (⚠️ soft skills NON déduites)
+        # 7️⃣ Prompt STRICT (pas de soft skills inventés)
         prompt = f"""
-Tu es un expert RH chargé d’extraire les informations d’un CV.
+Tu es un extracteur de CV. Réponds en JSON STRICT uniquement.
 
-TU DOIS :
-- répondre UNIQUEMENT en JSON pur
-- ne PAS ajouter de phrases hors JSON
-- ne PAS utiliser ```json
-- respecter EXACTEMENT la structure demandée
-- NE PAS mélanger expériences et éducation
-- NE PAS inventer de compétences techniques
-- NE PAS DÉDUIRE les soft skills : n’inclus dans "soft_skills" que celles qui sont
-  clairement écrites dans le texte (ex: section Compétences, Soft Skills, Qualités…).
-  Si tu n'es pas sûr → laisse "soft_skills": [].
+Ne déduis PAS de soft skills : n’ajoute dans "soft_skills" que celles clairement écrites dans le CV.
 
-Analyse UNIQUEMENT le texte suivant :
+Analyse uniquement le texte suivant :
 
 ------------------------
 {context}
@@ -109,12 +131,6 @@ Retourne STRICTEMENT ce JSON :
  "certifications": [],
  "interests": []
 }}
-
-RÈGLES IMPORTANTES :
-- EXPERIENCES = uniquement stages / emplois
-- EDUCATION = uniquement diplômes / écoles
-- Ne crée PAS de soft skills si elles ne sont pas écrites clairement dans le CV.
-- Si une info est introuvable → laisse vide ou []
 """
 
         payload = {
@@ -131,10 +147,9 @@ RÈGLES IMPORTANTES :
         resp = requests.post(self.api_url, json=payload, headers=headers)
         data = resp.json()
 
-        # 7️⃣ Résultat brut
         raw_text = data["choices"][0]["message"]["content"]
 
-        # 🔥 8️⃣ Nettoyage robuste du JSON
+        # 8️⃣ Nettoyage JSON
         cleaned = (
             raw_text.replace("```json", "")
                     .replace("```", "")
@@ -146,6 +161,7 @@ RÈGLES IMPORTANTES :
 
         if start != -1 and end != -1:
             json_content = cleaned[start:end]
+
             try:
                 cv_data = json.loads(json_content)
             except Exception as e:
@@ -156,18 +172,15 @@ RÈGLES IMPORTANTES :
                     "raw_output": raw_text
                 }
 
-            # ✅ 9️⃣ Fusionner les technologies des projets dans technical_skills
-            #    (pour inclure FastAPI, RAG, LangChain, etc.)
+            # 9️⃣ Fusionner technologies des projets dans technical_skills
             tech_skills = cv_data.get("technical_skills", []) or []
             project_techs = []
 
             for proj in cv_data.get("projects", []) or []:
                 project_techs.extend(proj.get("technologies", []) or [])
 
-            all_techs = sorted(set(tech_skills + project_techs))
-            cv_data["technical_skills"] = all_techs
+            cv_data["technical_skills"] = sorted(set(tech_skills + project_techs))
 
             return cv_data
 
-        # Si rien n'a fonctionné → renvoyer la sortie brute
         return {"raw_output": raw_text}
