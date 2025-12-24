@@ -1,74 +1,123 @@
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import PromptTemplate
-from langchain_core.output_parsers import StrOutputParser
 import os
-from dotenv import load_dotenv
 import json
+import requests
+from dotenv import load_dotenv
 
-# Charger les variables d'environnement
 load_dotenv()
 
 class JobAnalyzerAgent:
     def __init__(self):
-        # Vérifier que la clé API existe
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
+
+        self.api_key = os.getenv("HF_TOKEN")
+        if not self.api_key:
             raise ValueError(
-                "GOOGLE_API_KEY non trouvée. "
-                "Vérifiez que le fichier .env existe dans le dossier backend "
-                "et contient : GOOGLE_API_KEY=votre_clé"
+                "⚠️ HF_TOKEN non trouvé. Ajoutez dans votre fichier .env :\nHF_TOKEN=ton_token"
             )
-        
-        print(f"✓ Clé API chargée : {api_key[:10]}...")
-        
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
-            google_api_key=api_key,
-            temperature=0.3
-        )
-        
-        self.analysis_prompt = PromptTemplate(
-            input_variables=["job_description"],
-            template="""
-Analysez cette offre d'emploi et extrayez les informations structurées.
 
-Offre d'emploi :
-{job_description}
+        print(f"✓ Token Hugging Face chargé : {self.api_key[:10]}...")
 
-Fournissez une analyse détaillée au format JSON avec :
-- title: Titre du poste
-- technical_skills: Liste des compétences techniques requises
-- soft_skills: Liste des compétences interpersonnelles
-- experience_level: Niveau d'expérience requis
-- education_level: Niveau d'études requis
-- responsibilities: Liste des responsabilités principales
-- keywords: Liste des mots-clés importants
+        # URL HuggingFace Router
+        self.api_url = "https://router.huggingface.co/v1/chat/completions"
 
-Répondez UNIQUEMENT avec un objet JSON valide.
-"""
-        )
-        
-        self.chain = self.analysis_prompt | self.llm | StrOutputParser()
-    
+        # Modèle choisi : Llama 3.1 Instruct
+        self.model = "meta-llama/Llama-3.1-8B-Instruct"
+
+        # Prompt renforcé pour JSON strict
+        self.prompt = """
+        Tu es un agent expert en analyse d'offres d'emploi.
+        Tu dois retourner un JSON STRICT et VALIDE. STRICT signifie :
+        - pas de texte avant
+        - pas de texte après
+        - pas de commentaires
+        - pas de prose
+        - uniquement un JSON pur.
+
+        Voici l’offre :
+        ----------------
+        {job_description}
+        ----------------
+
+        Règles importantes :
+            - Si l'offre mentionne une durée en mois (ex : "6 mois"), c'est très probablement un STAGE.
+            - Si l’offre mentionne "stage", "internship", "stagiaire", "intern", renvoyer "stage".
+            - Si rien n’est indiqué mais que le texte contient "nous recherchons", "CDI", "CDD", alors déduire le type.
+            - Si aucune déduction n’est possible, retourner "inconnu".
+
+            -Si salaire n’est pas mentionné, retourner "inconnu".
+
+        Retourne EXACTEMENT ce format :
+
+        {{
+        "title": "",
+        "technical_skills": [],
+        "soft_skills": [],
+        "experience_level": "",
+        "education_level": "",
+        "contract_type": "",
+        "location": "",
+        "responsibilities": [],
+        "keywords": []
+        }}
+
+        Ne rajoute aucun texte ni explication.
+        """
+
     async def analyze_job(self, job_description: str):
+        """Analyse une offre d'emploi avec Llama 3.1 via HuggingFace"""
+
+        payload = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Tu es un extracteur JSON. Réponds uniquement en JSON strict. Jamais de texte hors JSON."
+                },
+                {
+                    "role": "user",
+                    "content": self.prompt.format(job_description=job_description)
+                }
+            ],
+            "max_tokens": 400
+        }
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
         try:
-            result = await self.chain.ainvoke({"job_description": job_description})
-            
-            # Nettoyer la réponse
-            result = result.strip()
-            if result.startswith("```json"):
-                result = result[7:]
-            if result.startswith("```"):
-                result = result[3:]
-            if result.endswith("```"):
-                result = result[:-3]
-            result = result.strip()
-            
+            response = requests.post(self.api_url, headers=headers, json=payload)
+
+            if response.status_code != 200:
+                return {
+                    "error": f"HTTP {response.status_code}",
+                    "details": response.text
+                }
+
+            data = response.json()
+            text = data["choices"][0]["message"]["content"].strip()
+
+            # Nettoyage des blocks ```json
+            if text.startswith("```"):
+                text = text.replace("```json", "")
+                text = text.replace("```", "")
+                text = text.strip()
+
+            # Extraction JSON en cas de texte parasite
             try:
-                parsed = json.loads(result)
-                return parsed
+                start = text.find("{")
+                end = text.rfind("}") + 1
+                if start != -1 and end != -1:
+                    json_clean = text[start:end]
+                    return json.loads(json_clean)
+            except:
+                pass
+
+            # Tentative brute
+            try:
+                return json.loads(text)
             except json.JSONDecodeError:
-                return {"raw_analysis": result}
-                
+                return {"raw_output": text}
+
         except Exception as e:
             return {"error": str(e)}
