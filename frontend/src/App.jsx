@@ -7,14 +7,40 @@ import {
   Award,
   TrendingUp,
   FileText,
+  Calendar,
+  Mail,
+  MessageSquare,
+  BarChart3,
+  Settings,
+  Home,
+  UserPlus,
+  CheckCircle,
+  Clock,
+  Search,
+  Filter,
+  Download,
+  Eye,
+  Phone,
+  MapPin,
+  Linkedin,
+  Star,
 } from "lucide-react";
 
 function App() {
+  // États principaux
+  const [activeTab, setActiveTab] = useState("home");
   const [jobText, setJobText] = useState("");
   const [files, setFiles] = useState([]);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // États pour les autres fonctionnalités
+  const [candidates, setCandidates] = useState([]);
+  const [interviews, setInterviews] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+
+  // Handlers existants
   const handleFiles = (e) => {
     const selected = Array.from(e.target.files);
     setFiles((prev) => [...prev, ...selected]);
@@ -44,6 +70,27 @@ function App() {
 
       const data = await response.json();
       setResults(data);
+
+      // Ajouter les candidats à la liste
+      if (data.ranked_candidates) {
+        const newCandidates = data.ranked_candidates.map((c, i) => ({
+          id: Date.now() + i,
+          name: c.candidate_name,
+          email: `${c.candidate_name
+            .toLowerCase()
+            .replace(/\s+/g, ".")}@email.com`,
+          phone: "+33 6 XX XX XX XX",
+          location: "France",
+          status: "pending",
+          score: c.scores.global,
+          technical: c.scores.technical,
+          softSkills: c.scores.soft_skills,
+          experience: c.scores.experience,
+          appliedDate: new Date().toLocaleDateString("fr-FR"),
+          notes: "",
+        }));
+        setCandidates((prev) => [...prev, ...newCandidates]);
+      }
     } catch (err) {
       console.error(err);
       alert("Erreur côté backend.");
@@ -66,61 +113,122 @@ function App() {
     return "Faible";
   };
 
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      pending: { label: "En attente", color: "#f59e0b", bg: "#fef3c7" },
+      shortlisted: { label: "Présélectionné", color: "#3b82f6", bg: "#dbeafe" },
+      interview: { label: "Entretien", color: "#8b5cf6", bg: "#ede9fe" },
+      accepted: { label: "Accepté", color: "#10b981", bg: "#d1fae5" },
+      rejected: { label: "Rejeté", color: "#ef4444", bg: "#fee2e2" },
+    };
+    return statusConfig[status] || statusConfig.pending;
+  };
+
+  // Filtrage des candidats
+  const filteredCandidates = candidates.filter((c) => {
+    const matchesSearch =
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = filterStatus === "all" || c.status === filterStatus;
+    return matchesSearch && matchesFilter;
+  });
+
   const styles = {
     container: {
       minHeight: "100vh",
       background: "linear-gradient(to bottom right, #dbeafe, #e0e7ff, #f3e8ff)",
-      padding: "20px",
       display: "flex",
-      justifyContent: "center",
     },
-    maxWidth: {
-      width: "100%",
-      maxWidth: "1200px",
+    sidebar: {
+      width: "280px",
+      background: "linear-gradient(to bottom, #1e293b, #334155)",
+      padding: "24px",
+      display: "flex",
+      flexDirection: "column",
+      gap: "8px",
+    },
+    sidebarButton: {
+      display: "flex",
+      alignItems: "center",
+      gap: "12px",
+      padding: "12px 16px",
+      background: "transparent",
+      border: "none",
+      borderRadius: "8px",
+      color: "#cbd5e1",
+      cursor: "pointer",
+      fontSize: "15px",
+      fontWeight: "500",
+      transition: "all 0.2s",
+      textAlign: "left",
+    },
+    sidebarButtonActive: {
+      background: "rgba(99, 102, 241, 0.2)",
+      color: "#a5b4fc",
+    },
+    mainContent: {
+      flex: 1,
+      padding: "32px",
+      overflowY: "auto",
     },
     header: {
-      textAlign: "center",
-      marginBottom: "48px",
+      marginBottom: "32px",
     },
-    iconContainer: {
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      width: "64px",
-      height: "64px",
-      background: "#4f46e5",
-      borderRadius: "16px",
-      marginBottom: "16px",
-    },
-    title: {
-      fontSize: "36px",
+    headerTitle: {
+      fontSize: "32px",
       fontWeight: "bold",
       color: "#111827",
       marginBottom: "8px",
     },
-    subtitle: {
+    headerSubtitle: {
       color: "#6b7280",
       fontSize: "16px",
     },
     card: {
       background: "white",
       borderRadius: "16px",
-      boxShadow:
-        "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-      padding: "32px",
+      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+      padding: "24px",
+      marginBottom: "24px",
+    },
+    statsGrid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+      gap: "20px",
       marginBottom: "32px",
     },
-    label: {
-      display: "flex",
-      alignItems: "center",
-      fontSize: "18px",
+    statCard: {
+      background: "white",
+      padding: "20px",
+      borderRadius: "12px",
+      boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+    },
+    button: {
+      padding: "12px 24px",
+      background: "linear-gradient(to right, #4f46e5, #7c3aed)",
+      color: "white",
+      border: "none",
+      borderRadius: "8px",
+      fontSize: "15px",
       fontWeight: "600",
-      color: "#1f2937",
-      marginBottom: "12px",
+      cursor: "pointer",
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "8px",
+      transition: "all 0.2s",
+    },
+    input: {
+      width: "100%",
+      padding: "10px 14px",
+      border: "2px solid #e5e7eb",
+      borderRadius: "8px",
+      fontSize: "15px",
+      outline: "none",
+      transition: "all 0.2s",
     },
     textarea: {
       width: "100%",
-      height: "160px",
+      height: "120px",
       padding: "12px 16px",
       border: "2px solid #e5e7eb",
       borderRadius: "12px",
@@ -129,476 +237,821 @@ function App() {
       resize: "none",
       transition: "all 0.2s",
     },
-    uploadZone: {
-      border: "2px dashed #d1d5db",
-      borderRadius: "12px",
-      padding: "32px",
-      textAlign: "center",
-      cursor: "pointer",
-      transition: "all 0.2s",
-    },
-    uploadIcon: {
-      width: "48px",
-      height: "48px",
-      background: "#e0e7ff",
-      borderRadius: "50%",
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: "12px",
-    },
-    fileItem: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      background: "#f9fafb",
-      padding: "12px 16px",
-      borderRadius: "8px",
-      marginBottom: "8px",
-      transition: "background 0.2s",
-    },
-    fileIcon: {
-      width: "32px",
-      height: "32px",
-      background: "#e0e7ff",
-      borderRadius: "8px",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: "12px",
-    },
-    button: {
-      width: "100%",
-      padding: "16px",
-      background: "linear-gradient(to right, #4f46e5, #7c3aed)",
-      color: "white",
-      border: "none",
-      borderRadius: "12px",
-      fontSize: "18px",
-      fontWeight: "600",
-      cursor: "pointer",
-      boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
-      transition: "all 0.2s",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    buttonDisabled: {
-      background: "linear-gradient(to right, #d1d5db, #d1d5db)",
-      cursor: "not-allowed",
-    },
-    statsContainer: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: "32px",
-      background: "linear-gradient(to right, #eef2ff, #faf5ff)",
-      padding: "16px 32px",
-      borderRadius: "12px",
-    },
-    statItem: {
-      textAlign: "center",
-    },
     table: {
       width: "100%",
       borderCollapse: "collapse",
-      marginTop: "24px",
     },
     th: {
       textAlign: "left",
-      padding: "16px",
+      padding: "12px 16px",
       fontWeight: "600",
       color: "#374151",
       borderBottom: "2px solid #e5e7eb",
+      fontSize: "14px",
     },
     td: {
-      padding: "16px",
+      padding: "12px 16px",
       borderBottom: "1px solid #f3f4f6",
-    },
-    scoreBadge: {
-      padding: "4px 12px",
-      borderRadius: "20px",
-      fontWeight: "bold",
-      fontSize: "14px",
-      display: "inline-block",
     },
   };
 
-  return (
-    <div style={styles.container}>
-      <div style={styles.maxWidth}>
-        {/* Header */}
-        <div style={styles.header}>
-          <div style={styles.iconContainer}>
-            <Briefcase size={32} color="white" />
-          </div>
-          <h1 style={styles.title}>AI Hiring Assistantttttttt</h1>
-          <p style={styles.subtitle}>
-            Analysez et classez vos candidats intelligemment
-          </p>
-        </div>
+  // Composant Dashboard
+  const DashboardView = () => (
+    <div>
+      <div style={styles.header}>
+        <h1 style={styles.headerTitle}>📊 Tableau de Bord</h1>
+        <p style={styles.headerSubtitle}>
+          Vue d'ensemble de votre processus de recrutement
+        </p>
+      </div>
 
-        {/* Main Card */}
-        <div style={styles.card}>
-          {/* Job Description */}
-          <div style={{ marginBottom: "32px" }}>
-            <label style={styles.label}>
-              <FileText
-                size={20}
-                color="#4f46e5"
-                style={{ marginRight: "8px" }}
-              />
-              Description du poste
-            </label>
-            <textarea
-              value={jobText}
-              onChange={(e) => setJobText(e.target.value)}
-              placeholder="Décrivez en détail le poste, les compétences requises, l'expérience souhaitée..."
-              style={styles.textarea}
-              onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
-              onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
-            />
-          </div>
-
-          {/* File Upload */}
-          <div style={{ marginBottom: "32px" }}>
-            <label style={styles.label}>
-              <Upload
-                size={20}
-                color="#4f46e5"
-                style={{ marginRight: "8px" }}
-              />
-              CV des candidats (PDF)
-            </label>
-            <div
-              style={styles.uploadZone}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.borderColor = "#818cf8")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.borderColor = "#d1d5db")
-              }
-            >
-              <input
-                type="file"
-                multiple
-                accept="application/pdf"
-                onChange={handleFiles}
-                style={{ display: "none" }}
-                id="file-upload"
-              />
-              <label
-                htmlFor="file-upload"
-                style={{ cursor: "pointer", display: "block" }}
-              >
-                <div style={styles.uploadIcon}>
-                  <Upload size={24} color="#4f46e5" />
-                </div>
-                <div
-                  style={{
-                    color: "#374151",
-                    fontWeight: "500",
-                    marginBottom: "4px",
-                  }}
-                >
-                  Cliquez pour sélectionner des fichiers
-                </div>
-                <div style={{ color: "#9ca3af", fontSize: "14px" }}>
-                  ou glissez-déposez vos CV ici
-                </div>
-              </label>
-            </div>
-          </div>
-
-          {/* Selected Files */}
-          {files.length > 0 && (
-            <div style={{ marginBottom: "32px" }}>
-              <h3 style={{ ...styles.label, marginBottom: "12px" }}>
-                <Users
-                  size={20}
-                  color="#4f46e5"
-                  style={{ marginRight: "8px" }}
-                />
-                CV sélectionnés ({files.length})
-              </h3>
-              <div>
-                {files.map((file, index) => (
-                  <div
-                    key={index}
-                    style={styles.fileItem}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = "#f3f4f6")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "#f9fafb")
-                    }
-                  >
-                    <div style={{ display: "flex", alignItems: "center" }}>
-                      <div style={styles.fileIcon}>
-                        <FileText size={16} color="#4f46e5" />
-                      </div>
-                      <span style={{ color: "#374151", fontWeight: "500" }}>
-                        {file.name}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => removeFile(index)}
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        padding: "8px",
-                        cursor: "pointer",
-                        borderRadius: "8px",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background = "#fee2e2")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = "transparent")
-                      }
-                    >
-                      <Trash2 size={16} color="#dc2626" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Analyze Button */}
-          <button
-            onClick={handleAnalyze}
-            disabled={loading || !jobText || files.length === 0}
+      <div style={styles.statsGrid}>
+        <div style={styles.statCard}>
+          <div
             style={{
-              ...styles.button,
-              ...(loading || !jobText || files.length === 0
-                ? styles.buttonDisabled
-                : {}),
-            }}
-            onMouseEnter={(e) => {
-              if (!loading && jobText && files.length > 0) {
-                e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow =
-                  "0 20px 25px -5px rgba(0, 0, 0, 0.15)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow =
-                "0 10px 15px -3px rgba(0, 0, 0, 0.1)";
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              marginBottom: "12px",
             }}
           >
-            {loading ? (
-              <>
-                <svg
-                  style={{
-                    animation: "spin 1s linear infinite",
-                    marginRight: "12px",
-                    width: "20px",
-                    height: "20px",
-                  }}
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    style={{ opacity: 0.25 }}
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    style={{ opacity: 0.75 }}
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                Analyse en cours...
-              </>
-            ) : (
-              <>
-                <TrendingUp size={20} style={{ marginRight: "8px" }} />
-                Analyser et Classer les Candidats
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Results */}
-        {results && (
-          <div style={styles.card}>
-            <div style={{ textAlign: "center", marginBottom: "32px" }}>
-              <h2
+            <div
+              style={{
+                padding: "10px",
+                background: "#dbeafe",
+                borderRadius: "8px",
+              }}
+            >
+              <Users size={24} color="#2563eb" />
+            </div>
+            <div>
+              <p style={{ fontSize: "12px", color: "#6b7280" }}>
+                Total Candidats
+              </p>
+              <p
                 style={{
-                  fontSize: "30px",
+                  fontSize: "28px",
                   fontWeight: "bold",
-                  color: "#111827",
-                  marginBottom: "16px",
+                  color: "#1f2937",
                 }}
               >
-                📊 Résultats de l'Analyse
-              </h2>
-              <div style={styles.statsContainer}>
-                <div style={styles.statItem}>
-                  <p
-                    style={{
-                      fontSize: "14px",
-                      color: "#6b7280",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Poste
-                  </p>
-                  <p
-                    style={{
-                      fontSize: "18px",
-                      fontWeight: "bold",
-                      color: "#4f46e5",
-                    }}
-                  >
-                    {results.job_title}
-                  </p>
-                </div>
-                <div
-                  style={{
-                    width: "1px",
-                    height: "48px",
-                    background: "#d1d5db",
-                  }}
-                />
-                <div style={styles.statItem}>
-                  <p
-                    style={{
-                      fontSize: "14px",
-                      color: "#6b7280",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Candidats
-                  </p>
-                  <p
-                    style={{
-                      fontSize: "18px",
-                      fontWeight: "bold",
-                      color: "#7c3aed",
-                    }}
-                  >
-                    {results.candidate_count}
-                  </p>
-                </div>
-              </div>
+                {candidates.length}
+              </p>
             </div>
+          </div>
+        </div>
 
-            {/* Candidates Table */}
-            <div style={{ overflowX: "auto" }}>
-              <table style={styles.table}>
-                <thead>
-                  <tr>
-                    <th style={styles.th}>Rang</th>
-                    <th style={styles.th}>Candidat</th>
-                    <th style={{ ...styles.th, textAlign: "center" }}>
-                      Score Global
-                    </th>
-                    <th style={{ ...styles.th, textAlign: "center" }}>
-                      Technique
-                    </th>
-                    <th style={{ ...styles.th, textAlign: "center" }}>
-                      Soft Skills
-                    </th>
-                    <th style={{ ...styles.th, textAlign: "center" }}>
-                      Expérience
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.ranked_candidates.map((candidate, index) => (
-                    <tr
-                      key={index}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background = "#f9fafb")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = "transparent")
-                      }
-                    >
-                      <td style={styles.td}>
-                        <div style={{ display: "flex", alignItems: "center" }}>
-                          {index === 0 && (
-                            <Award
-                              size={20}
-                              color="#eab308"
-                              style={{ marginRight: "8px" }}
-                            />
-                          )}
-                          <span
-                            style={{ fontWeight: "bold", color: "#374151" }}
-                          >
-                            #{index + 1}
-                          </span>
-                        </div>
-                      </td>
-                      <td style={styles.td}>
-                        <span style={{ fontWeight: "600", color: "#1f2937" }}>
-                          {candidate.candidate_name}
-                        </span>
-                      </td>
-                      <td style={{ ...styles.td, textAlign: "center" }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                          }}
-                        >
-                          <span
-                            style={{
-                              ...styles.scoreBadge,
-                              ...getScoreColor(candidate.scores.global),
-                            }}
-                          >
-                            {candidate.scores.global}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: "12px",
-                              color: "#9ca3af",
-                              marginTop: "4px",
-                            }}
-                          >
-                            {getScoreBadge(candidate.scores.global)}
-                          </span>
-                        </div>
-                      </td>
-                      <td style={{ ...styles.td, textAlign: "center" }}>
-                        <span style={{ fontWeight: "600", color: "#374151" }}>
-                          {candidate.scores.technical}
-                        </span>
-                      </td>
-                      <td style={{ ...styles.td, textAlign: "center" }}>
-                        <span style={{ fontWeight: "600", color: "#374151" }}>
-                          {candidate.scores.soft_skills}
-                        </span>
-                      </td>
-                      <td style={{ ...styles.td, textAlign: "center" }}>
-                        <span style={{ fontWeight: "600", color: "#374151" }}>
-                          {candidate.scores.experience}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <div style={styles.statCard}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              marginBottom: "12px",
+            }}
+          >
+            <div
+              style={{
+                padding: "10px",
+                background: "#fef3c7",
+                borderRadius: "8px",
+              }}
+            >
+              <Clock size={24} color="#f59e0b" />
             </div>
+            <div>
+              <p style={{ fontSize: "12px", color: "#6b7280" }}>En attente</p>
+              <p
+                style={{
+                  fontSize: "28px",
+                  fontWeight: "bold",
+                  color: "#1f2937",
+                }}
+              >
+                {candidates.filter((c) => c.status === "pending").length}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div style={styles.statCard}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              marginBottom: "12px",
+            }}
+          >
+            <div
+              style={{
+                padding: "10px",
+                background: "#ede9fe",
+                borderRadius: "8px",
+              }}
+            >
+              <Calendar size={24} color="#8b5cf6" />
+            </div>
+            <div>
+              <p style={{ fontSize: "12px", color: "#6b7280" }}>Entretiens</p>
+              <p
+                style={{
+                  fontSize: "28px",
+                  fontWeight: "bold",
+                  color: "#1f2937",
+                }}
+              >
+                {candidates.filter((c) => c.status === "interview").length}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div style={styles.statCard}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              marginBottom: "12px",
+            }}
+          >
+            <div
+              style={{
+                padding: "10px",
+                background: "#d1fae5",
+                borderRadius: "8px",
+              }}
+            >
+              <CheckCircle size={24} color="#10b981" />
+            </div>
+            <div>
+              <p style={{ fontSize: "12px", color: "#6b7280" }}>Acceptés</p>
+              <p
+                style={{
+                  fontSize: "28px",
+                  fontWeight: "bold",
+                  color: "#1f2937",
+                }}
+              >
+                {candidates.filter((c) => c.status === "accepted").length}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={styles.card}>
+        <h3
+          style={{ fontSize: "18px", fontWeight: "600", marginBottom: "16px" }}
+        >
+          🎯 Candidats Récents
+        </h3>
+        {candidates.length === 0 ? (
+          <p style={{ color: "#6b7280", textAlign: "center", padding: "40px" }}>
+            Aucun candidat pour le moment. Commencez par analyser des CV !
+          </p>
+        ) : (
+          <div>
+            {candidates.slice(0, 5).map((candidate) => {
+              const status = getStatusBadge(candidate.status);
+              return (
+                <div
+                  key={candidate.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "16px",
+                    borderBottom: "1px solid #f3f4f6",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "50%",
+                        background:
+                          "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "white",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {candidate.name.charAt(0)}
+                    </div>
+                    <div>
+                      <p style={{ fontWeight: "600", color: "#1f2937" }}>
+                        {candidate.name}
+                      </p>
+                      <p style={{ fontSize: "14px", color: "#6b7280" }}>
+                        {candidate.email}
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        padding: "4px 12px",
+                        borderRadius: "12px",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        color: status.color,
+                        background: status.bg,
+                      }}
+                    >
+                      {status.label}
+                    </span>
+                    <span
+                      style={{
+                        padding: "4px 12px",
+                        borderRadius: "12px",
+                        fontSize: "13px",
+                        fontWeight: "bold",
+                        ...getScoreColor(candidate.score),
+                      }}
+                    >
+                      {candidate.score}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
+    </div>
+  );
 
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+  // Composant Analyse CV (existant)
+  const AnalysisView = () => (
+    <div>
+      <div style={styles.header}>
+        <h1 style={styles.headerTitle}>🔍 Analyse de CV</h1>
+        <p style={styles.headerSubtitle}>
+          Analysez et classez vos candidats intelligemment
+        </p>
+      </div>
+
+      <div style={styles.card}>
+        <div style={{ marginBottom: "24px" }}>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "16px",
+              fontWeight: "600",
+              marginBottom: "8px",
+            }}
+          >
+            <FileText size={18} color="#4f46e5" />
+            Description du poste
+          </label>
+          <textarea
+            value={jobText}
+            onChange={(e) => setJobText(e.target.value)}
+            placeholder="Décrivez en détail le poste, les compétences requises, l'expérience souhaitée..."
+            style={styles.textarea}
+          />
+        </div>
+
+        <div style={{ marginBottom: "24px" }}>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "16px",
+              fontWeight: "600",
+              marginBottom: "8px",
+            }}
+          >
+            <Upload size={18} color="#4f46e5" />
+            CV des candidats (PDF)
+          </label>
+          <div
+            style={{
+              border: "2px dashed #d1d5db",
+              borderRadius: "12px",
+              padding: "32px",
+              textAlign: "center",
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="file"
+              multiple
+              accept="application/pdf"
+              onChange={handleFiles}
+              style={{ display: "none" }}
+              id="file-upload"
+            />
+            <label htmlFor="file-upload" style={{ cursor: "pointer" }}>
+              <Upload size={32} color="#6366f1" />
+              <p style={{ marginTop: "12px", fontWeight: "500" }}>
+                Cliquez pour sélectionner des fichiers
+              </p>
+            </label>
+          </div>
+        </div>
+
+        {files.length > 0 && (
+          <div style={{ marginBottom: "24px" }}>
+            <h3
+              style={{
+                fontSize: "16px",
+                fontWeight: "600",
+                marginBottom: "12px",
+              }}
+            >
+              CV sélectionnés ({files.length})
+            </h3>
+            {files.map((file, index) => (
+              <div
+                key={index}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "12px",
+                  background: "#f9fafb",
+                  borderRadius: "8px",
+                  marginBottom: "8px",
+                }}
+              >
+                <span>{file.name}</span>
+                <button
+                  onClick={() => removeFile(index)}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Trash2 size={16} color="#dc2626" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button
+          onClick={handleAnalyze}
+          disabled={loading || !jobText || files.length === 0}
+          style={{
+            ...styles.button,
+            width: "100%",
+            justifyContent: "center",
+            opacity: loading || !jobText || files.length === 0 ? 0.5 : 1,
+          }}
+        >
+          {loading ? "Analyse en cours..." : "Analyser les Candidats"}
+        </button>
+      </div>
+
+      {results && (
+        <div style={styles.card}>
+          <h2
+            style={{
+              fontSize: "24px",
+              fontWeight: "bold",
+              marginBottom: "24px",
+            }}
+          >
+            📊 Résultats de l'Analyse
+          </h2>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Rang</th>
+                <th style={styles.th}>Candidat</th>
+                <th style={styles.th}>Score Global</th>
+                <th style={styles.th}>Technique</th>
+                <th style={styles.th}>Soft Skills</th>
+                <th style={styles.th}>Expérience</th>
+              </tr>
+            </thead>
+            <tbody>
+              {results.ranked_candidates.map((candidate, index) => (
+                <tr key={index}>
+                  <td style={styles.td}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      {index === 0 && <Award size={18} color="#eab308" />}
+                      <span style={{ fontWeight: "bold" }}>#{index + 1}</span>
+                    </div>
+                  </td>
+                  <td style={styles.td}>{candidate.candidate_name}</td>
+                  <td style={styles.td}>
+                    <span
+                      style={{
+                        padding: "4px 12px",
+                        borderRadius: "12px",
+                        fontWeight: "bold",
+                        ...getScoreColor(candidate.scores.global),
+                      }}
+                    >
+                      {candidate.scores.global}
+                    </span>
+                  </td>
+                  <td style={styles.td}>{candidate.scores.technical}</td>
+                  <td style={styles.td}>{candidate.scores.soft_skills}</td>
+                  <td style={styles.td}>{candidate.scores.experience}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+
+  // Composant Gestion Candidats
+  const CandidatesView = () => (
+    <div>
+      <div style={styles.header}>
+        <h1 style={styles.headerTitle}>👥 Gestion des Candidats</h1>
+        <p style={styles.headerSubtitle}>Gérez et suivez tous vos candidats</p>
+      </div>
+
+      <div style={{ ...styles.card, marginBottom: "24px" }}>
+        <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+          <div style={{ flex: 1, position: "relative" }}>
+            <Search
+              size={20}
+              color="#9ca3af"
+              style={{
+                position: "absolute",
+                left: "12px",
+                top: "50%",
+                transform: "translateY(-50%)",
+              }}
+            />
+            <input
+              type="text"
+              placeholder="Rechercher un candidat..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ ...styles.input, paddingLeft: "40px" }}
+            />
+          </div>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            style={{ ...styles.input, width: "200px" }}
+          >
+            <option value="all">Tous les statuts</option>
+            <option value="pending">En attente</option>
+            <option value="shortlisted">Présélectionné</option>
+            <option value="interview">Entretien</option>
+            <option value="accepted">Accepté</option>
+            <option value="rejected">Rejeté</option>
+          </select>
+        </div>
+      </div>
+
+      <div style={styles.card}>
+        {filteredCandidates.length === 0 ? (
+          <p style={{ textAlign: "center", color: "#6b7280", padding: "40px" }}>
+            Aucun candidat trouvé
+          </p>
+        ) : (
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Candidat</th>
+                <th style={styles.th}>Contact</th>
+                <th style={styles.th}>Score</th>
+                <th style={styles.th}>Statut</th>
+                <th style={styles.th}>Date</th>
+                <th style={styles.th}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCandidates.map((candidate) => {
+                const status = getStatusBadge(candidate.status);
+                return (
+                  <tr key={candidate.id}>
+                    <td style={styles.td}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "36px",
+                            height: "36px",
+                            borderRadius: "50%",
+                            background:
+                              "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "white",
+                            fontWeight: "bold",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {candidate.name.charAt(0)}
+                        </div>
+                        <div>
+                          <p style={{ fontWeight: "600", color: "#1f2937" }}>
+                            {candidate.name}
+                          </p>
+                          <p style={{ fontSize: "13px", color: "#6b7280" }}>
+                            {candidate.location}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={styles.td}>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "4px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            fontSize: "13px",
+                          }}
+                        >
+                          <Mail size={14} color="#6b7280" />
+                          <span style={{ color: "#4b5563" }}>
+                            {candidate.email}
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            fontSize: "13px",
+                          }}
+                        >
+                          <Phone size={14} color="#6b7280" />
+                          <span style={{ color: "#4b5563" }}>
+                            {candidate.phone}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={styles.td}>
+                      <span
+                        style={{
+                          padding: "4px 12px",
+                          borderRadius: "12px",
+                          fontWeight: "bold",
+                          fontSize: "14px",
+                          ...getScoreColor(candidate.score),
+                        }}
+                      >
+                        {candidate.score}
+                      </span>
+                    </td>
+                    <td style={styles.td}>
+                      <span
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: "12px",
+                          fontSize: "13px",
+                          fontWeight: "600",
+                          color: status.color,
+                          background: status.bg,
+                        }}
+                      >
+                        {status.label}
+                      </span>
+                    </td>
+                    <td style={styles.td}>
+                      <span style={{ fontSize: "14px", color: "#6b7280" }}>
+                        {candidate.appliedDate}
+                      </span>
+                    </td>
+                    <td style={styles.td}>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          style={{
+                            padding: "6px 12px",
+                            border: "1px solid #e5e7eb",
+                            background: "white",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}
+                        >
+                          <Eye size={14} />
+                          <span style={{ fontSize: "13px" }}>Voir</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+
+  // Composant Entretiens
+  const InterviewsView = () => (
+    <div>
+      <div style={styles.header}>
+        <h1 style={styles.headerTitle}>📅 Entretiens</h1>
+        <p style={styles.headerSubtitle}>Planifiez et gérez vos entretiens</p>
+      </div>
+
+      <div style={styles.card}>
+        <div
+          style={{
+            textAlign: "center",
+            padding: "60px 20px",
+            color: "#6b7280",
+          }}
+        >
+          <Calendar
+            size={64}
+            color="#d1d5db"
+            style={{ margin: "0 auto 16px" }}
+          />
+          <h3
+            style={{
+              fontSize: "18px",
+              fontWeight: "600",
+              color: "#374151",
+              marginBottom: "8px",
+            }}
+          >
+            Fonctionnalité à venir
+          </h3>
+          <p>
+            Le système de planification d'entretiens sera disponible
+            prochainement.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Composant Statistiques
+  const StatisticsView = () => (
+    <div>
+      <div style={styles.header}>
+        <h1 style={styles.headerTitle}>📈 Statistiques</h1>
+        <p style={styles.headerSubtitle}>
+          Analysez vos performances de recrutement
+        </p>
+      </div>
+
+      <div style={styles.card}>
+        <div
+          style={{
+            textAlign: "center",
+            padding: "60px 20px",
+            color: "#6b7280",
+          }}
+        >
+          <BarChart3
+            size={64}
+            color="#d1d5db"
+            style={{ margin: "0 auto 16px" }}
+          />
+          <h3
+            style={{
+              fontSize: "18px",
+              fontWeight: "600",
+              color: "#374151",
+              marginBottom: "8px",
+            }}
+          >
+            Fonctionnalité à venir
+          </h3>
+          <p>Les statistiques détaillées seront disponibles prochainement.</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={styles.container}>
+      {/* Sidebar */}
+      <div style={styles.sidebar}>
+        <div style={{ marginBottom: "32px" }}>
+          <div
+            style={{
+              width: "48px",
+              height: "48px",
+              background: "#6366f1",
+              borderRadius: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: "12px",
+            }}
+          >
+            <Briefcase size={24} color="white" />
+          </div>
+          <h2 style={{ color: "white", fontSize: "20px", fontWeight: "bold" }}>
+            AI Recruiter
+          </h2>
+        </div>
+
+        <button
+          onClick={() => setActiveTab("home")}
+          style={{
+            ...styles.sidebarButton,
+            ...(activeTab === "home" ? styles.sidebarButtonActive : {}),
+          }}
+        >
+          <Home size={20} />
+          Tableau de bord
+        </button>
+
+        <button
+          onClick={() => setActiveTab("analysis")}
+          style={{
+            ...styles.sidebarButton,
+            ...(activeTab === "analysis" ? styles.sidebarButtonActive : {}),
+          }}
+        >
+          <TrendingUp size={20} />
+          Analyse CV
+        </button>
+
+        <button
+          onClick={() => setActiveTab("candidates")}
+          style={{
+            ...styles.sidebarButton,
+            ...(activeTab === "candidates" ? styles.sidebarButtonActive : {}),
+          }}
+        >
+          <Users size={20} />
+          Candidats
+        </button>
+
+        <button
+          onClick={() => setActiveTab("interviews")}
+          style={{
+            ...styles.sidebarButton,
+            ...(activeTab === "interviews" ? styles.sidebarButtonActive : {}),
+          }}
+        >
+          <Calendar size={20} />
+          Entretiens
+        </button>
+
+        <button
+          onClick={() => setActiveTab("statistics")}
+          style={{
+            ...styles.sidebarButton,
+            ...(activeTab === "statistics" ? styles.sidebarButtonActive : {}),
+          }}
+        >
+          <BarChart3 size={20} />
+          Statistiques
+        </button>
+      </div>
+
+      {/* Main Content */}
+      <div style={styles.mainContent}>
+        {activeTab === "home" && <DashboardView />}
+        {activeTab === "analysis" && <AnalysisView />}
+        {activeTab === "candidates" && <CandidatesView />}
+        {activeTab === "interviews" && <InterviewsView />}
+        {activeTab === "statistics" && <StatisticsView />}
+      </div>
     </div>
   );
 }
