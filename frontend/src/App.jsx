@@ -25,6 +25,7 @@ import {
   Linkedin,
   Star,
 } from "lucide-react";
+import VideoInterview from "./components/VideoInterview";
 
 function App() {
   // États principaux
@@ -892,35 +893,8 @@ function App() {
         <h1 style={styles.headerTitle}>📅 Entretiens</h1>
         <p style={styles.headerSubtitle}>Planifiez et gérez vos entretiens</p>
       </div>
-
       <div style={styles.card}>
-        <div
-          style={{
-            textAlign: "center",
-            padding: "60px 20px",
-            color: "#6b7280",
-          }}
-        >
-          <Calendar
-            size={64}
-            color="#d1d5db"
-            style={{ margin: "0 auto 16px" }}
-          />
-          <h3
-            style={{
-              fontSize: "18px",
-              fontWeight: "600",
-              color: "#374151",
-              marginBottom: "8px",
-            }}
-          >
-            Fonctionnalité à venir
-          </h3>
-          <p>
-            Le système de planification d'entretiens sera disponible
-            prochainement.
-          </p>
-        </div>
+        <VideoInterview />
       </div>
     </div>
   );
