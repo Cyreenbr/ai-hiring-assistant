@@ -6,6 +6,7 @@ from app.routes.cv import router as cv_router
 from app.routes.matching import router as matching_router
 from app.routes.orchestration import router as orchestrator_router
 from app.routes.report import router as report_router
+from app.routes.interviews import router as interviews_router
 
 app = FastAPI(
     title="AI Hiring Assistant",
@@ -26,6 +27,7 @@ app.include_router(cv_router, prefix="/api/cv")
 app.include_router(matching_router)
 app.include_router(orchestrator_router)
 app.include_router(report_router)
+app.include_router(interviews_router)
 
 @app.get("/")
 async def root():
