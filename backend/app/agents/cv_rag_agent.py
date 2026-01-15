@@ -1,14 +1,16 @@
 import os
 import json
 import requests
+import numpy as np
 from dotenv import load_dotenv
 
 from app.services.pdf_reader import extract_text_from_pdf
 from app.services.chunking import split_into_chunks
-from app.services.embeddings import embed_chunks
+from app.services.embeddings import embed_chunks, embed_query
 from app.services.vector_store import VectorStore
 
 load_dotenv()
+
 
 class CVRAGAgent:
 
@@ -17,64 +19,127 @@ class CVRAGAgent:
         self.api_url = "https://router.huggingface.co/v1/chat/completions"
         self.model = "meta-llama/Llama-3.1-8B-Instruct"
 
-        # Stockage FAISS persistant (en mémoire)
+        # Index FAISS unique et persistant
         self.store = None
 
     async def analyze_cv(self, pdf_path: str):
 
-        # 1. Extraction PDF
+        # 1️⃣ Extraction du texte du CV
         text = extract_text_from_pdf(pdf_path)
 
-        # 2. Chunking propre
-        chunks = split_into_chunks(text, chunk_size=400, overlap=40)
+        # Si CV vide → renvoyer JSON vide propre
+        if not text or len(text.strip()) < 20:
+            return {
+                "name": "",
+                "contact": {"email": "", "phone": ""},
+                "profile_summary": "",
+                "experiences": [],
+                "education": [],
+                "technical_skills": [],
+                "soft_skills": [],
+                "languages": [],
+                "projects": [],
+                "certifications": [],
+                "interests": []
+            }
 
-        # 3. Embeddings
+        # 2️⃣ Découpage en chunks
+        chunks = split_into_chunks(text, chunk_size=800, overlap=80)
+
+        if len(chunks) == 0:
+            chunks = [text]  # fallback minimal
+
+        # 3️⃣ Embeddings locaux
         vectors = embed_chunks(chunks)
 
-        # 4. Initialiser FAISS une fois
+        # 4️⃣ Initialisation FAISS
         if self.store is None:
             self.store = VectorStore(dimension=vectors.shape[1])
             self.store.add(vectors)
 
-        # 5. Retrieval : "résume ce CV"
-        query_vec = emb_model.encode(["résume le CV de façon concise"])[0].reshape(1, -1)
-        indices = self.store.search(query_vec, top_k=3)
+        # 5️⃣ Embedding de la requête
+        query_vec = embed_query(
+            "extrait toutes les informations importantes du CV : "
+            "expériences, formations, projets, compétences techniques, soft skills, langues, certifications"
+        ).reshape(1, -1)
 
-        relevant_chunks = [chunks[i] for i in indices[0]]
+        # 6️⃣ Recherche robuste (ÉVITE l’erreur IndexError)
+        k = min(5, len(chunks))
+        indices = self.store.search(query_vec, top_k=k)
+
+        # Filtrer indices invalides
+        valid_indices = []
+        for i in indices[0]:
+            if isinstance(i, int) and 0 <= i < len(chunks):
+                valid_indices.append(i)
+
+        # Fallback si aucun chunk valide
+        if not valid_indices:
+            relevant_chunks = [chunks[0]]
+        else:
+            relevant_chunks = [chunks[i] for i in valid_indices]
 
         context = "\n\n".join(relevant_chunks)
 
-        # 6. Prompt amélioré + few-shot JSON
+        # 7️⃣ Prompt STRICT (pas de soft skills inventés)
         prompt = f"""
-            Tu es un expert RH spécialisé en extraction de CV.
-            Analyse UNIQUEMENT les informations contenues dans le texte suivant :
+Tu es un extracteur de CV. Réponds en JSON STRICT uniquement.
 
-            ------------------------
-            {context}
-            ------------------------
+Ne déduis PAS de soft skills : n’ajoute dans "soft_skills" que celles clairement écrites dans le CV.
 
-            Retourne un JSON STRICT SANS TEXTE AVANT/APRÈS.
+Analyse uniquement le texte suivant :
 
-            Exemple de format correct :
-            {{
-                "name": "John Doe",
-                "technical_skills": ["Python", "SQL"],
-                "soft_skills": ["Communication", "Adaptabilité"],
-                "experience_years": "3 ans",
-                "education_level": "Licence Informatique",
-                "projects": ["Application web de gestion", "Système de recommandation"]
-            }}
+------------------------
+{context}
+------------------------
 
-            Maintenant, génère le JSON basé sur le CV fourni.
-            """
+Retourne STRICTEMENT ce JSON :
+
+{{
+ "name": "",
+ "contact": {{
+    "email": "",
+    "phone": ""
+ }},
+ "profile_summary": "",
+ "experiences": [
+    {{
+      "title": "",
+      "company": "",
+      "period": "",
+      "tasks": []
+    }}
+ ],
+ "education": [
+    {{
+      "degree": "",
+      "specialization": "",
+      "school": "",
+      "year": ""
+    }}
+ ],
+ "technical_skills": [],
+ "soft_skills": [],
+ "languages": [],
+ "projects": [
+    {{
+      "name": "",
+      "description": "",
+      "technologies": []
+    }}
+ ],
+ "certifications": [],
+ "interests": []
+}}
+"""
 
         payload = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": "Tu es un extracteur JSON strict et précis."},
+                {"role": "system", "content": "Tu es un extracteur JSON strict."},
                 {"role": "user", "content": prompt}
             ],
-            "max_tokens": 400
+            "max_tokens": 1500
         }
 
         headers = {"Authorization": f"Bearer {self.api_key}"}
@@ -84,11 +149,38 @@ class CVRAGAgent:
 
         raw_text = data["choices"][0]["message"]["content"]
 
-        # 7. Nettoyage JSON
-        try:
-            start = raw_text.find("{")
-            end = raw_text.rfind("}") + 1
-            clean = raw_text[start:end]
-            return json.loads(clean)
-        except:
-            return {"raw_output": raw_text}
+        # 8️⃣ Nettoyage JSON
+        cleaned = (
+            raw_text.replace("```json", "")
+                    .replace("```", "")
+                    .strip()
+        )
+
+        start = cleaned.find("{")
+        end = cleaned.rfind("}") + 1
+
+        if start != -1 and end != -1:
+            json_content = cleaned[start:end]
+
+            try:
+                cv_data = json.loads(json_content)
+            except Exception as e:
+                return {
+                    "error": "json_parse_failed",
+                    "details": str(e),
+                    "partial_json": json_content,
+                    "raw_output": raw_text
+                }
+
+            # 9️⃣ Fusionner technologies des projets dans technical_skills
+            tech_skills = cv_data.get("technical_skills", []) or []
+            project_techs = []
+
+            for proj in cv_data.get("projects", []) or []:
+                project_techs.extend(proj.get("technologies", []) or [])
+
+            cv_data["technical_skills"] = sorted(set(tech_skills + project_techs))
+
+            return cv_data
+
+        return {"raw_output": raw_text}

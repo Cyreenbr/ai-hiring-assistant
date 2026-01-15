@@ -13,3 +13,7 @@ pydantic-settings==2.1.0
 pypdf2==3.0.1
 python-docx==1.1.0
 chromadb==0.4.22
+aiofiles==23.1.0
+httpx==0.24.1
+# Note: ffmpeg binary required (install via system package manager: apt/brew/choco)
+# for generating simple reports
