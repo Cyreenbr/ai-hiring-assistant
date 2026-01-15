@@ -1,14 +1,27 @@
-import { useState } from "react";
-import Sidebar from "./layout/Sidebar";
-import DashboardView from "./pages/rh/Dashboard";
-import AnalysisView from "./pages/rh/Analysis";
-import CandidatesView from "./pages/rh/Candidates";
-import InterviewsView from "./pages/rh/Interviews";
-import StatisticsView from "./pages/rh/Statistics";
-import { styles } from "./styles/styles";
+import { useState, useEffect } from "react";
+import LoginPage from "./LoginPage";
+import RegisterPage from "./RegisterPage";
+import Sidebar from "./Sidebar";
+import DashboardView from "./DashboardView";
+import AnalysisView from "./AnalysisView";
+import CandidatesView from "./CandidatesView";
+import InterviewsView from "./InterviewsView";
+import StatisticsView from "./StatisticsView";
+import { styles } from "./styles";
 import { getScoreColor, getScoreBadge, getStatusBadge } from "./utils";
+import {
+  isAuthenticated,
+  getCurrentUser,
+  logout as authLogout,
+} from "./services/authService";
 
 function App() {
+  // États d'authentification
+  const [isAuth, setIsAuth] = useState(false);
+  const [user, setUser] = useState(null);
+  const [authView, setAuthView] = useState("login");
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
   // États principaux
   const [activeTab, setActiveTab] = useState("home");
   const [jobText, setJobText] = useState("");
@@ -22,7 +35,48 @@ function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
 
-  // Handlers
+  // Vérifier l'authentification au chargement
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (isAuthenticated()) {
+        try {
+          const userData = await getCurrentUser();
+          setUser(userData);
+          setIsAuth(true);
+        } catch (error) {
+          console.error("Auth check failed:", error);
+          setIsAuth(false);
+        }
+      }
+      setCheckingAuth(false);
+    };
+
+    checkAuth();
+  }, []);
+
+  // Handlers d'authentification
+  const handleLoginSuccess = async () => {
+    try {
+      const userData = await getCurrentUser();
+      setUser(userData);
+      setIsAuth(true);
+    } catch (error) {
+      console.error("Failed to get user:", error);
+    }
+  };
+
+  const handleRegisterSuccess = () => {
+    setAuthView("login");
+  };
+
+  const handleLogout = () => {
+    authLogout();
+    setIsAuth(false);
+    setUser(null);
+    setActiveTab("home");
+  };
+
+  // Handlers existants
   const handleFiles = (e) => {
     const selected = Array.from(e.target.files);
     setFiles((prev) => [...prev, ...selected]);
@@ -53,7 +107,6 @@ function App() {
       const data = await response.json();
       setResults(data);
 
-      // Ajouter les candidats à la liste
       if (data.ranked_candidates) {
         const newCandidates = data.ranked_candidates.map((c, i) => ({
           id: Date.now() + i,
@@ -81,16 +134,67 @@ function App() {
     setLoading(false);
   };
 
+  // Affichage pendant la vérification de l'auth
+  if (checkingAuth) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background:
+            "linear-gradient(to bottom right, #dbeafe, #e0e7ff, #f3e8ff)",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div
+            style={{
+              width: "48px",
+              height: "48px",
+              border: "4px solid #e5e7eb",
+              borderTopColor: "#6366f1",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite",
+              margin: "0 auto 16px",
+            }}
+          />
+          <p style={{ color: "#6b7280" }}>Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Affichage de l'authentification
+  if (!isAuth) {
+    if (authView === "login") {
+      return (
+        <LoginPage
+          onLoginSuccess={handleLoginSuccess}
+          onSwitchToRegister={() => setAuthView("register")}
+        />
+      );
+    } else {
+      return (
+        <RegisterPage
+          onRegisterSuccess={handleRegisterSuccess}
+          onSwitchToLogin={() => setAuthView("login")}
+        />
+      );
+    }
+  }
+
+  // Application principale (après authentification)
   return (
     <div style={styles.container}>
-      {/* Sidebar */}
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        styles={styles} 
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        styles={styles}
+        user={user}
+        onLogout={handleLogout}
       />
 
-      {/* Main Content */}
       <div style={styles.mainContent}>
         {activeTab === "home" && (
           <DashboardView
@@ -98,10 +202,11 @@ function App() {
             styles={styles}
             getStatusBadge={getStatusBadge}
             getScoreColor={getScoreColor}
+            user={user}
           />
         )}
-        
-        {activeTab === "analysis" && (
+
+        {activeTab === "analysis" && user?.role === "hr" && (
           <AnalysisView
             jobText={jobText}
             setJobText={setJobText}
@@ -115,7 +220,7 @@ function App() {
             getScoreColor={getScoreColor}
           />
         )}
-        
+
         {activeTab === "candidates" && (
           <CandidatesView
             candidates={candidates}
@@ -128,14 +233,10 @@ function App() {
             getScoreColor={getScoreColor}
           />
         )}
-        
-        {activeTab === "interviews" && (
-          <InterviewsView styles={styles} />
-        )}
-        
-        {activeTab === "statistics" && (
-          <StatisticsView styles={styles} />
-        )}
+
+        {activeTab === "interviews" && <InterviewsView styles={styles} />}
+
+        {activeTab === "statistics" && <StatisticsView styles={styles} />}
       </div>
     </div>
   );
