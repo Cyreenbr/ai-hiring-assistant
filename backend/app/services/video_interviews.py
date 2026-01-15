@@ -95,9 +95,9 @@ async def transcribe_audio(path: str) -> str:
 
 
 async def generate_questions(candidate_name: str = "", job_description: str = "") -> list:
-    """Generate 3-5 personalized interview questions.
+    """Generate 3-5 personalized interview questions based on job description.
     If `QUESTIONS_URL` is configured, call it with JSON {candidate_name, job_description}.
-    Otherwise return simple template questions.
+    Otherwise return simple template questions tailored to the job.
     """
     questions_url = os.getenv("QUESTIONS_URL")
     if questions_url:
@@ -110,15 +110,70 @@ async def generate_questions(candidate_name: str = "", job_description: str = ""
         except Exception:
             pass
 
-    # fallback simple generation
-    base = [
-        f"Parlez-moi de votre expérience principale liée à {job_description.split()[0] if job_description else 'ce poste' }.",
-        "Décrivez un challenge technique récent et comment vous l'avez résolu.",
-        "Donnez un exemple où vous avez travaillé en équipe pour atteindre un objectif.",
-        "Comment gérez-vous les priorités et les deadlines ?",
-        "Pourquoi voulez-vous rejoindre cette entreprise et ce rôle ?",
-    ]
-    # return 3-5
+    # Enhanced fallback generation based on job description analysis
+    if job_description:
+        # Extract key elements from job description
+        job_lower = job_description.lower()
+
+        # Common job categories and their specific questions
+        if any(word in job_lower for word in ["python", "java", "javascript", "développeur", "developpeur", "dev", "coder", "programmeur"]):
+            base = [
+                f"Parlez-moi de votre expérience en développement et des technologies mentionnées dans cette offre : {job_description[:100]}...",
+                "Décrivez un projet personnel ou professionnel où vous avez utilisé les technologies demandées.",
+                "Comment abordez-vous la résolution de bugs complexes dans votre code ?",
+                "Parlez-moi de votre expérience avec les tests unitaires et l'intégration continue.",
+                "Comment vous tenez-vous à jour des nouvelles technologies et pratiques de développement ?",
+            ]
+        elif any(word in job_lower for word in ["data", "analyste", "analyst", "machine learning", "ml", "ai", "intelligence artificielle"]):
+            base = [
+                f"Parlez-moi de votre expérience en analyse de données et des outils mentionnés dans cette offre : {job_description[:100]}...",
+                "Décrivez un projet où vous avez analysé un dataset important et quelles insights vous en avez tiré.",
+                "Comment choisissez-vous entre différents algorithmes ou méthodes d'analyse ?",
+                "Parlez-moi de votre expérience avec la visualisation de données.",
+                "Comment gérez-vous la qualité et la fiabilité des données dans vos analyses ?",
+            ]
+        elif any(word in job_lower for word in ["manager", "gestion", "chef", "lead", "directeur"]):
+            base = [
+                f"Parlez-moi de votre expérience en management et des responsabilités mentionnées dans cette offre : {job_description[:100]}...",
+                "Décrivez une situation où vous avez dû gérer une équipe face à un défi important.",
+                "Comment motivez-vous vos équipes et gérez-vous les conflits ?",
+                "Parlez-moi de votre approche pour définir des objectifs et mesurer les performances.",
+                "Comment abordez-vous le développement professionnel de votre équipe ?",
+            ]
+        else:
+            # Generic but personalized questions
+            job_keywords = []
+            if "expérience" in job_lower or "experience" in job_lower:
+                job_keywords.append("votre expérience professionnelle")
+            if any(word in job_lower for word in ["équipe", "team", "collaborat"]):
+                job_keywords.append("le travail en équipe")
+            if any(word in job_lower for word in ["client", "customer"]):
+                job_keywords.append("la relation client")
+
+            context_phrase = f"liée à {', '.join(job_keywords)}" if job_keywords else "principale"
+
+            base = [
+                f"Parlez-moi de votre expérience {context_phrase} pour ce poste : {job_description.split('.')[0] if job_description else 'ce rôle'}.",
+                "Décrivez un challenge professionnel récent et comment vous l'avez résolu.",
+                "Donnez un exemple concret où vous avez travaillé en équipe pour atteindre un objectif.",
+                "Comment gérez-vous les priorités et respectez-vous les délais ?",
+                f"Pourquoi êtes-vous intéressé{'e' if candidate_name else ''} par ce poste et cette entreprise ?",
+            ]
+    else:
+        # No job description provided - generic questions
+        base = [
+            "Parlez-moi de votre expérience professionnelle principale.",
+            "Décrivez un challenge technique ou professionnel récent et comment vous l'avez résolu.",
+            "Donnez un exemple où vous avez travaillé en équipe pour atteindre un objectif.",
+            "Comment gérez-vous les priorités et les deadlines ?",
+            "Pourquoi voulez-vous rejoindre cette entreprise et ce rôle ?",
+        ]
+
+    # Personalize with candidate name if provided
+    if candidate_name:
+        base[0] = f"Bonjour {candidate_name}. {base[0]}"
+
+    # return 4-5 questions
     return base[:5]
 
 

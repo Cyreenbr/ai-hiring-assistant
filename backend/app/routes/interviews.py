@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Body
+from fastapi import APIRouter, UploadFile, File, HTTPException, Body, Form
 from fastapi.responses import FileResponse
 from app.services.video_interviews import (
     save_upload,
@@ -14,7 +14,11 @@ router = APIRouter(prefix="/api/interviews", tags=["interviews"])
 
 
 @router.post("/upload")
-async def upload_interview(file: UploadFile = File(...)):
+async def upload_interview(
+    file: UploadFile = File(...),
+    job_id: int = Form(None),
+    candidate_id: int = Form(None)
+):
     interview_id = str(uuid4())
     filename = f"{interview_id}_{file.filename}"
     try:
@@ -22,7 +26,13 @@ async def upload_interview(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     download_url = f"/api/interviews/download/{saved_filename}"
-    return {"id": interview_id, "filename": saved_filename, "download_url": download_url}
+    return {
+        "id": interview_id,
+        "filename": saved_filename,
+        "download_url": download_url,
+        "job_id": job_id,
+        "candidate_id": candidate_id
+    }
 
 
 @router.get("/download/{filename}")
@@ -42,8 +52,9 @@ async def transcribe(filename: str):
 async def gen_questions(payload: dict = Body(...)):
     name = payload.get("candidate_name", "")
     job = payload.get("job_description", "")
+    job_id = payload.get("job_id")
     questions = await generate_questions(name, job)
-    return {"questions": questions}
+    return {"questions": questions, "job_id": job_id}
 
 
 @router.post("/analyze/{filename}")
